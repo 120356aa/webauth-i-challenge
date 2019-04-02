@@ -9,6 +9,7 @@ const Users = require('./users/users-modal.js');
 const server = express();
 
 const session = require('express-session');
+const knexSessionStore = require('connect-session-knex')('session');
 
 const sessionConfig = {
   name: 'andrew',
@@ -19,10 +20,17 @@ const sessionConfig = {
   },
   httpOnly: true,
   resave: false,
-  saveUninitialized: false
-}
+  saveUninitialized: false,
+  store: new knexSessionStore({
+    knex: require('./data/dbConfig.js'),
+    tablename: 'sessions',
+    sidfieldname: 'sid',
+    createtable: true,
+    clearInterval: 1000 * 60 * 60
+  })
+};
 
-server.use(session);
+server.use(session(sessionConfig));
 server.use(helmet());
 server.use(express.json());
 
@@ -51,9 +59,13 @@ server.get('/', (req, res) => {
 });
 
 server.get('/api/users', restricted, (req, res) => {
-  Users.find()
+  if (req.session && !req.session.user) {
+    return res.status(401).json({ error: 'You shall not pass!' })
+  } else {
+    Users.find()
     .then(users => res.json(users))
     .catch(err => res.send(err));
+  }
 });
 
 server.post('/api/register', (req, res) => {
@@ -76,12 +88,25 @@ server.post('/api/login', (req, res) => {
     .first()
     .then(user => {
       if (user && bcrypt.compareSync(password, user.password)) {
-        res.status(200).json({ message: `Welcome ${user.username}!` });
+        if (req.session && req.session.user) {
+          res.status(200).json({ message: `Welcome ${user.username}!` });
+        } else {
+          res.status(401).json({ message: 'Invalid Credentials' });
+        }
       } else {
         res.status(401).json({ message: 'Invalid Credentials' });
       }
     })
     .catch(error => res.status(500).json(error));
 });
+
+server.get('/api/logout', (req, res) => {
+  if (req.session)
+    req.session.destroy(err => {
+      if (err) res.send('Error logging out')
+      else res.send('Logged out')
+    })
+  else res.end()
+})
 
 server.listen(PORT, console.log(PORT));
