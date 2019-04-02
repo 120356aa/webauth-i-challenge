@@ -8,6 +8,21 @@ const Users = require('./users/users-modal.js');
 
 const server = express();
 
+const session = require('express-session');
+
+const sessionConfig = {
+  name: 'andrew',
+  secret: 'thisisnotasecret',
+  cookie: {
+    maxAge: 1000 * 60 * 60,
+    secure: false
+  },
+  httpOnly: true,
+  resave: false,
+  saveUninitialized: false
+}
+
+server.use(session);
 server.use(helmet());
 server.use(express.json());
 
